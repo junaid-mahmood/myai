@@ -21,12 +21,26 @@ def needs_screenshot(query):
     return any(keyword in query.lower() for keyword in visual_keywords)
 
 async def process_query(query):
-    if needs_screenshot(query): 
+    if needs_screenshot(query):
         screenshot = await capture_screenshot()
-        response = await sample_generate_text_image_content(query, [screenshot])
+        context = "You are an AI assistant analyzing a screenshot of a user's desktop. " \
+                  "Focus only on the main visible window or application, ignoring any terminal " \
+                  "or PowerShell windows. The user has asked the following about their screen: "
+        prompt = f"{context}{query}\n\nAnalyze the screenshot and provide a concise, accurate answer " \
+                 f"based solely on the content of the main visible window. Ignore any system tray, " \
+                 f"desktop icons, or other background elements. If the main content is not visible " \
+                 f"or relevant to the query, state that clearly. Provide only the answer, without any " \
+                 f"additional explanations or qualifiers. After each sentence, start a new line."
+        response = await sample_generate_text_image_content(prompt, [screenshot])
     else:
-        response = await sample_generate_text_content(query)
-    return response
+        context = "You are an AI assistant. Provide a concise and accurate answer to the following question. " \
+                  "After each sentence, start a new line: "
+        prompt = f"{context}{query}"
+        response = await sample_generate_text_content(prompt)
+    
+    # Process the response to ensure new lines after periods
+    processed_response = '. \n'.join(sentence.strip() for sentence in response.split('.') if sentence.strip())
+    return processed_response
 
 def listen_for_audio():
     r = sr.Recognizer()
@@ -71,6 +85,7 @@ async def main():
     print("Welcome to the Gemini Desktop Assistant!")
     print("Type your question, or press Esc to use voice input.")
     print("Type 'quit' to exit.")
+    print("Type 'cls' to clear the console.")
 
     audio_mode = False
 
@@ -94,6 +109,10 @@ async def main():
             break
         elif query.lower() == 'list models':
             list_available_models()
+            continue
+        elif query.lower() == 'cls':
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print("Console cleared. Type your next question.")
             continue
 
         print("Processing...")
